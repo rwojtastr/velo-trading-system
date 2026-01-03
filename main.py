@@ -5,8 +5,8 @@ import ccxt
 import pandas as pd
 from google.cloud import storage
 
-# Configuration
-SYMBOLS = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'BNB/USDT']
+# Configuration - CCXT format for Binance USD-M perpetual futures
+SYMBOLS = ['BTC/USDT:USDT', 'ETH/USDT:USDT', 'SOL/USDT:USDT', 'BNB/USDT:USDT']
 TIMEFRAMES = ['1m', '5m', '15m', '1h']
 BUCKET_NAME = 'velo-raw-data'
 BARS_PER_DAY = {'1m': 1440, '5m': 288, '15m': 96, '1h': 24}
@@ -17,14 +17,11 @@ def collect_data(request):
     """HTTP Cloud Function to collect Binance OHLCV data."""
     
     # Check for backfill parameter
-    request_json = request.get_json(silent=True)
     request_args = request.args
     
     days_back = 1  # Default: yesterday only
     if request_args and 'days' in request_args:
-        days_back = int(request_args.get('days'))
-    elif request_json and 'days' in request_json:
-        days_back = int(request_json.get('days'))
+        days_back = min(int(request_args.get('days')), 30)  # Max 30 days per run
     
     # Initialize exchange and load markets
     exchange = ccxt.binanceusdm({'enableRateLimit': True})
@@ -49,7 +46,7 @@ def collect_data(request):
             for tf in TIMEFRAMES:
                 try:
                     # Check if file already exists
-                    symbol_clean = symbol.replace('/', '_')
+                    symbol_clean = symbol.replace('/', '_').replace(':', '_')
                     blob_path = f"{symbol_clean}/{tf}/{target_date}.parquet"
                     blob = bucket.blob(blob_path)
                     
@@ -79,12 +76,12 @@ def collect_data(request):
                     logs.append(f"  Saved {len(df)} bars")
                     success_count += 1
                     
-                    time.sleep(0.3)
+                    time.sleep(0.2)
                     
                 except Exception as e:
                     logs.append(f"  ERROR: {str(e)}")
         
-        time.sleep(1)  # Pause between days
+        time.sleep(0.5)
     
     logs.append(f"\nCompleted: {success_count}/{total_count} successful")
     result = "\n".join(logs)
