@@ -1,0 +1,13 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install dependencies
+COPY requirements-backfill.txt .
+RUN pip install --no-cache-dir -r requirements-backfill.txt
+
+# Copy application
+COPY backfill.py .
+
+# Run the backfill
+CMD ["python", "backfill.py"]
